@@ -1,0 +1,21 @@
+[project]
+name = "terraform-aws-import-generator"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.ruff.lint]
+ignore = [
+  # Conflicts with the formatter
+  "COM812", "ISC001"
+]
+
+[tool.pyright]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.2",
+    "uv>=0.5.21",
+]
