@@ -59,7 +59,8 @@ def generate_import_block(
 ) -> str:
     """Generate import block for a resource."""
     matching_class = schema_classes.get(resource["type"])
-    import_id = '""  # TODO'
+    documentation = f"https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/{resource['type'].replace('aws_', '')}#import"
+    import_id = f'"" # TODO: {documentation}'
 
     if matching_class:
         try:
