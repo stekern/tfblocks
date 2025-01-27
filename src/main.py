@@ -64,7 +64,8 @@ def generate_import_block(
     if matching_class:
         try:
             instance = matching_class(resource["address"], resource["values"])
-            import_id = f'"{instance.import_id}"'
+            if instance.import_id is not None:
+                import_id = f'"{instance.import_id}"'
         except Exception:
             pass
 
