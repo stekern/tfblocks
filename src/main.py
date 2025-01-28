@@ -95,6 +95,13 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
     state = json.load(sys.stdin)
+
+    if state.get("format_version") != "1.0":
+        print(
+            "Error: Unsupported state file format version. Expected version '1.0'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     schema_classes = get_aws_resource_import_id_generators()
 
     resources = filter_resources(state, args.addresses)
