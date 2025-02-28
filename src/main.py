@@ -17,23 +17,78 @@ def get_aws_resource_import_id_generators() -> Dict[str, type]:
     }
 
 
-def is_resource_match(resource_addr: str, filter_addrs: List[str]) -> bool:
-    """Check if resource address matches any of the filter addresses."""
-    if not filter_addrs:
+def extract_resource_addresses_from_file(file_path: str) -> List[str]:
+    """Extract resource and module addresses from a Terraform file."""
+    addresses = []
+    try:
+        with open(file_path, "r") as f:
+            content = f.read()
+
+        # Match resource blocks
+        resource_pattern = r'resource\s+"([^"]+)"\s+"([^"]+)"'
+        resources = re.finditer(resource_pattern, content)
+        for match in resources:
+            addresses.append(f"{match.group(1)}.{match.group(2)}")
+
+        # Match module blocks
+        module_pattern = r'module\s+"([^"]+)"'
+        modules = re.finditer(module_pattern, content)
+        for match in modules:
+            addresses.append(f"module.{match.group(1)}")
+
+    except Exception as e:
+        print(f"Warning: Could not process file {file_path}: {str(e)}", file=sys.stderr)
+
+    return addresses
+
+
+def is_resource_match(
+    resource_addr: str, filter_addrs: List[str], file_addrs: List[str]
+) -> bool:
+    """Check if resource address matches the filter conditions.
+
+    If both filter_addrs and file_addrs are provided, the resource must match both (intersection).
+    If only one type of filter is provided, the resource must match that filter.
+    If no filters are provided, all resources match.
+    """
+
+    def matches_address_list(addr: str, addr_list: List[str]) -> bool:
+        for filter_addr in addr_list:
+            if addr == filter_addr:
+                return True
+            if filter_addr.startswith("module.") and addr.startswith(f"{filter_addr}."):
+                return True
+        return False
+
+    # If no filters provided, include everything
+    if not filter_addrs and not file_addrs:
         return True
-    for addr in filter_addrs:
-        if resource_addr == addr:
-            return True
-        if addr.startswith("module.") and resource_addr.startswith(f"{addr}."):
-            return True
-    return False
+
+    # If only address filters provided
+    if filter_addrs and not file_addrs:
+        return matches_address_list(resource_addr, filter_addrs)
+
+    # If only file filters provided
+    if file_addrs and not filter_addrs:
+        return matches_address_list(resource_addr, file_addrs)
+
+    # If both filters provided, must match both (intersection)
+    return matches_address_list(resource_addr, filter_addrs) and matches_address_list(
+        resource_addr, file_addrs
+    )
 
 
 def filter_resources(
-    state: Dict[str, Any], addresses: List[str]
+    state: Dict[str, Any], addresses: List[str] = [], files: List[str] = []
 ) -> List[Dict[str, Any]]:
     """Extract matching AWS managed resources from state."""
     resources = []
+
+    # Extract addresses from files if provided
+    file_addresses = []
+    if files:
+        for file_path in files:
+            file_addresses.extend(extract_resource_addresses_from_file(file_path))
 
     def process_module(module: Dict[str, Any]):
         # Handle resources in current module
@@ -41,7 +96,7 @@ def filter_resources(
             if (
                 resource.get("type", "").startswith("aws_")
                 and resource.get("mode") == "managed"
-                and is_resource_match(resource["address"], addresses)
+                and is_resource_match(resource["address"], addresses, file_addresses)
             ):
                 resources.append(resource)
 
@@ -87,6 +142,11 @@ def parse_args() -> argparse.Namespace:
         help="Optional module or resource addresses to filter by",
     )
     parser.add_argument(
+        "--files",
+        nargs="+",
+        help="Optional Terraform files to filter by",
+    )
+    parser.add_argument(
         "--no-color", action="store_true", help="Disable colored output"
     )
     return parser.parse_args()
@@ -104,7 +164,7 @@ def main():
         sys.exit(1)
     schema_classes = get_aws_resource_import_id_generators()
 
-    resources = filter_resources(state, args.addresses)
+    resources = filter_resources(state, args.addresses, args.files)
     imports = [generate_import_block(r, schema_classes) for r in resources]
 
     if args.no_color:
