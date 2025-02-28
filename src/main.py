@@ -131,10 +131,21 @@ def generate_import_block(
 }}"""
 
 
+def generate_removed_block(resource_addr: str, destroy: bool = False) -> str:
+    """Generate removed block for a resource or module."""
+    destroy_line = "\n    destroy = true" if destroy else "\n    destroy = false"
+
+    return f"""removed {{
+  from = {resource_addr}
+  lifecycle {{{destroy_line}
+  }}
+}}"""
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Generate Terraform import blocks for AWS resources based on Terraform state"
+        description="Generate Terraform import or removed blocks for AWS resources based on Terraform state"
     )
     parser.add_argument(
         "addresses",
@@ -149,6 +160,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--no-color", action="store_true", help="Disable colored output"
     )
+    parser.add_argument(
+        "--removed",
+        action="store_true",
+        help="Generate removed blocks instead of import blocks",
+    )
+    parser.add_argument(
+        "--destroy",
+        action="store_true",
+        help="Set destroy = true in removed blocks (default is false)",
+    )
     return parser.parse_args()
 
 
@@ -162,15 +183,21 @@ def main():
             file=sys.stderr,
         )
         sys.exit(1)
-    schema_classes = get_aws_resource_import_id_generators()
 
     resources = filter_resources(state, args.addresses, args.files)
-    imports = [generate_import_block(r, schema_classes) for r in resources]
+
+    if args.removed:
+        # For removed blocks, we just need the resource addresses
+        blocks = [generate_removed_block(r["address"], args.destroy) for r in resources]
+    else:
+        # For import blocks, we need the full resource data
+        schema_classes = get_aws_resource_import_id_generators()
+        blocks = [generate_import_block(r, schema_classes) for r in resources]
 
     if args.no_color:
-        print("\n\n".join(imports))
+        print("\n\n".join(blocks))
     else:
-        print("\033[92m" + "\n\n".join(imports) + "\033[0m")
+        print("\033[92m" + "\n\n".join(blocks) + "\033[0m")
 
 
 if __name__ == "__main__":
