@@ -4940,6 +4940,11 @@ class AwsLbListenerRule(BaseResource):
         return self.attributes["arn"]
 
 
+# Alias for backwards compatibility
+class AwsAlbListenerRule(AwsLbListenerRule):
+    pass
+
+
 class AwsSchedulerScheduleGroup(BaseResource):
     def _get_import_id(self) -> str | None:
         return self.attributes.get("name", None)
@@ -5707,6 +5712,11 @@ class AwsLbTargetGroup(BaseResource):
         return self.attributes["arn"]
 
 
+# Alias for backwards compatibility
+class AwsAlbTargetGroup(AwsLbTargetGroup):
+    pass
+
+
 class AwsIamSamlProvider(BaseResource):
     def _get_import_id(self) -> str | None:
         return self.attributes.get("arn", None)
@@ -6234,6 +6244,11 @@ class AwsLbTargetGroupAttachment(BaseResource):
         if not self.has_attributes(["target_group_arn", "target_id"]):
             return None
         return f"{self.attributes['target_group_arn']}/{self.attributes['target_id']}"
+
+
+# Alias for backwards compatibility
+class AwsAlbTargetGroupAttachment(AwsLbTargetGroupAttachment):
+    pass
 
 
 class AwsOamLink(BaseResource):
@@ -7888,6 +7903,11 @@ class AwsLbListenerCertificate(BaseResource):
         return f"{self.attributes['listener_arn']}_{self.attributes['certificate_arn']}"
 
 
+# Alias for backwards compatibility
+class AwsAlbListenerCertificate(AwsLbListenerCertificate):
+    pass
+
+
 class AwsEvidentlyProject(BaseResource):
     def _get_import_id(self) -> str | None:
         return self.attributes.get("arn", None)
@@ -9250,11 +9270,21 @@ class AwsLb(BaseResource):
         return self.attributes["arn"]
 
 
+# Alias for backwards compatibility
+class AwsAlb(AwsLb):
+    pass
+
+
 class AwsLbListener(BaseResource):
     def _get_import_id(self) -> str | None:
         if not self.has_attributes(["arn"]):
             return None
         return self.attributes["arn"]
+
+
+# Alias for backwards compatibility
+class AwsAlbListener(AwsLbListener):
+    pass
 
 
 class AwsLexBot(BaseResource):
