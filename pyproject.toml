@@ -1,10 +1,16 @@
 [project]
-name = "terraform-aws-import-generator"
+name = "tfblocks"
 version = "0.1.0"
-description = "Add your description here"
+description = "Generate Terraform import and removed blocks for AWS resources"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
+
+[project.scripts]
+tfblocks = "tfblocks.main:main"
+
+[tool.uv]
+package = true
 
 [tool.ruff.lint]
 ignore = [
@@ -13,6 +19,7 @@ ignore = [
 ]
 
 [tool.pyright]
+include = ["src", "tests"]
 
 [dependency-groups]
 dev = [
