@@ -8,10 +8,10 @@ class BaseResource:
         self.attributes = attributes or {}
 
     @property
-    def import_id(self) -> str | None:
+    def import_id(self) -> t.Optional[str]:
         return self._get_import_id()
 
-    def _get_import_id(self) -> str | None:
+    def _get_import_id(self) -> t.Optional[str]:
         return None
 
     def has_attributes(self, required_attributes: list[str]) -> bool:
