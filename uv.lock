@@ -406,7 +406,7 @@ wheels = [
 
 [[package]]
 name = "tfblocks"
-version = "0.0.1"
+version = "0.0.0.dev0"
 source = { editable = "." }
 
 [package.dev-dependencies]
