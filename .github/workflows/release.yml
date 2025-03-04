@@ -31,7 +31,7 @@ jobs:
           python-version-file: ".python-version"
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync && source .venv/bin/activate
 
       - name: Run tests
         run: uv run python -m unittest discover -v tests
@@ -42,4 +42,3 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           semantic-release version
-
