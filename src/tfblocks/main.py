@@ -71,6 +71,8 @@ def is_resource_match(
     If both filter_addrs and file_addrs are provided, the resource must match both (intersection).
     If only one type of filter is provided, the resource must match that filter.
     If no filters are provided, all resources match.
+
+    Supports wildcards (*) in filter addresses for pattern matching.
     """
 
     def extract_resource_type_and_name(addr: str) -> tuple:
@@ -85,6 +87,14 @@ def is_resource_match(
 
     def matches_address_list(addr: str, addr_list: List[str]) -> bool:
         for filter_addr in addr_list:
+            # Check for wildcard pattern matching
+            if "*" in filter_addr:
+                # Convert wildcard pattern to regex pattern
+                # Escape special regex chars except '*'
+                pattern = "^" + re.escape(filter_addr).replace("\\*", ".*") + "$"
+                if re.match(pattern, addr):
+                    return True
+
             # Exact match
             if addr == filter_addr:
                 return True

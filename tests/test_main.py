@@ -66,6 +66,32 @@ class TestResourceMatching(unittest.TestCase):
             )
         )
 
+    def test_wildcard_matching(self):
+        """Test matching resources using wildcards in filter addresses"""
+        # Match all resources of a specific type
+        self.assertTrue(
+            main.is_resource_match("aws_s3_bucket.test", ["aws_s3_bucket.*"], [])
+        )
+        self.assertTrue(
+            main.is_resource_match("aws_s3_bucket.other", ["aws_s3_bucket.*"], [])
+        )
+        self.assertFalse(
+            main.is_resource_match("aws_lambda_function.test", ["aws_s3_bucket.*"], [])
+        )
+        
+        # Match resources using wildcards in module paths
+        self.assertTrue(
+            main.is_resource_match("module.my_module.aws_s3_bucket.test", ["*.aws_s3_bucket.test"], [])
+        )
+        
+        # Match more complex patterns
+        self.assertTrue(
+            main.is_resource_match("module.my_module.aws_s3_bucket.test", ["module.*.aws_s3_bucket.*"], [])
+        )
+        self.assertFalse(
+            main.is_resource_match("other.my_module.aws_s3_bucket.test", ["module.*.aws_s3_bucket.*"], [])
+        )
+
     def test_intersection_filter(self):
         """Test that both address and file filters must match"""
         self.assertTrue(
