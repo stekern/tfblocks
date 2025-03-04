@@ -1,0 +1,45 @@
+name: release
+
+on:
+  push:
+    branches:
+      - "**"
+
+concurrency: ci-${{ github.ref }}-${{ github.workflow }}
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    concurrency: release
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests
+        run: uv run python -m unittest discover -v tests
+
+      - name: Conditional release
+        if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          semantic-release version
+
