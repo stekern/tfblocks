@@ -1,6 +1,6 @@
 [project]
 name = "tfblocks"
-version = "0.1.0"
+version = "0.0.1"
 description = "Generate Terraform import and removed blocks for AWS resources"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -23,6 +23,26 @@ include = ["src", "tests"]
 
 [dependency-groups]
 dev = [
+    "python-semantic-release>=9.21.0",
     "ruff>=0.9.2",
     "uv>=0.5.21",
 ]
+
+[tool.semantic_release]
+version_variable = ["src/tfblocks/__init__.py:__version__"]
+version_toml = ["pyproject.toml:project.version"]
+major_on_zero = false
+upload_to_pypi = false
+upload_to_release = true
+build_command = ""
+changelog_file = false
+branch = "main"
+parser_options = {}
+commit_parser = "angular"
+prerelease = false
+
+# Configure version bumping to always use patch releases while < 1.0.0
+[tool.semantic_release.commit_parser_options]
+allowed_types = ["feat", "fix", "perf", "docs", "style", "refactor", "test", "ci", "build", "chore"]
+minor_types = []
+patch_types = ["feat", "fix", "perf"]
