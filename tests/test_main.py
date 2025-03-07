@@ -1,6 +1,5 @@
-import tempfile
 import unittest
-from unittest.mock import mock_open, patch
+from unittest.mock import patch
 
 from tfblocks import main
 
@@ -42,7 +41,7 @@ class TestResourceMatching(unittest.TestCase):
                 "module.my_module[0].aws_s3_bucket.test", ["module.my_module"], []
             )
         )
-        
+
     def test_resource_type_name_match(self):
         """Test matching resources by type and name across different module paths"""
         # Resource in a module should match the same resource type and name from a file
@@ -51,14 +50,14 @@ class TestResourceMatching(unittest.TestCase):
                 "module.my_module.aws_s3_bucket.test", [], ["aws_s3_bucket.test"]
             )
         )
-        
+
         # Different resource name should not match
         self.assertFalse(
             main.is_resource_match(
                 "module.my_module.aws_s3_bucket.test", [], ["aws_s3_bucket.other"]
             )
         )
-        
+
         # Different resource type should not match
         self.assertFalse(
             main.is_resource_match(
@@ -78,18 +77,24 @@ class TestResourceMatching(unittest.TestCase):
         self.assertFalse(
             main.is_resource_match("aws_lambda_function.test", ["aws_s3_bucket.*"], [])
         )
-        
+
         # Match resources using wildcards in module paths
         self.assertTrue(
-            main.is_resource_match("module.my_module.aws_s3_bucket.test", ["*.aws_s3_bucket.test"], [])
+            main.is_resource_match(
+                "module.my_module.aws_s3_bucket.test", ["*.aws_s3_bucket.test"], []
+            )
         )
-        
+
         # Match more complex patterns
         self.assertTrue(
-            main.is_resource_match("module.my_module.aws_s3_bucket.test", ["module.*.aws_s3_bucket.*"], [])
+            main.is_resource_match(
+                "module.my_module.aws_s3_bucket.test", ["module.*.aws_s3_bucket.*"], []
+            )
         )
         self.assertFalse(
-            main.is_resource_match("other.my_module.aws_s3_bucket.test", ["module.*.aws_s3_bucket.*"], [])
+            main.is_resource_match(
+                "other.my_module.aws_s3_bucket.test", ["module.*.aws_s3_bucket.*"], []
+            )
         )
 
     def test_intersection_filter(self):
@@ -107,7 +112,7 @@ class TestResourceMatching(unittest.TestCase):
 
 
 class TestFileProcessing(unittest.TestCase):
-    def test_extract_resource_addresses_from_content(self):
+    def test_extract_addresses_from_content(self):
         """Test extracting resource addresses from content"""
         terraform_content = """
         resource "aws_s3_bucket" "bucket" {
@@ -123,28 +128,12 @@ class TestFileProcessing(unittest.TestCase):
         }
         """
 
-        addresses = main.extract_resource_addresses_from_content(terraform_content)
+        addresses = main.extract_addresses_from_content(terraform_content)
 
         self.assertEqual(len(addresses), 3)
         self.assertIn("aws_s3_bucket.bucket", addresses)
         self.assertIn("aws_dynamodb_table.table", addresses)
         self.assertIn("module.vpc", addresses)
-        
-    def test_file_exists(self):
-        """Test file existence check"""
-        # Test with tempfile to avoid dependencies on filesystem
-        with tempfile.NamedTemporaryFile() as temp_file:
-            self.assertTrue(main.file_exists(temp_file.name))
-            
-        # This path should not exist
-        self.assertFalse(main.file_exists("/path/that/does/not/exist/file.tf"))
-            
-    def test_extract_resource_addresses_nonexistent_file(self):
-        """Test behavior with nonexistent file"""
-        with patch("tfblocks.main.file_exists", return_value=False), \
-             patch("sys.exit") as mock_exit:
-            main.extract_resource_addresses_from_file("nonexistent.tf")
-            mock_exit.assert_called_once_with(1)
 
     def test_filter_resources_basic(self):
         """Test basic resource filtering without files"""
@@ -201,7 +190,7 @@ class TestFileProcessing(unittest.TestCase):
         resources = main.filter_resources(test_state, ["module.test"])
         self.assertEqual(len(resources), 1)
         self.assertEqual(resources[0]["address"], "module.test.aws_s3_bucket.nested")
-        
+
     def test_filter_resources_with_file_filters(self):
         """Test resource filtering with file filters"""
         # Create a test state
@@ -221,13 +210,13 @@ class TestFileProcessing(unittest.TestCase):
         }
 
         # Mock the file handling part without mocking implementation details
-        with patch("tfblocks.main.extract_resource_addresses_from_file") as mock_extract:
+        with patch("tfblocks.main.extract_addresses_from_file") as mock_extract:
             # Case 1: File contains matching resource
             mock_extract.return_value = ["aws_s3_bucket.test"]
             resources = main.filter_resources(test_state, [], ["matching_file.tf"])
             self.assertEqual(len(resources), 1)
             self.assertEqual(resources[0]["address"], "aws_s3_bucket.test")
-            
+
             # Case 2: File contains non-matching resource
             mock_extract.return_value = ["aws_lambda_function.not_in_state"]
             resources = main.filter_resources(test_state, [], ["non_matching_file.tf"])
@@ -249,6 +238,29 @@ class TestBlockGeneration(unittest.TestCase):
         block = main.generate_import_block(resource, schema_classes)
         self.assertIn("to = aws_s3_bucket.test", block)
         self.assertIn("id =", block)
+
+    def test_generate_import_block_for_unsupported_provider(self):
+        """Test generating an import block for an unsupported provider resource"""
+        resource = {
+            "address": "google_storage_bucket.test",
+            "type": "google_storage_bucket",
+            "values": {"name": "test-bucket"},
+        }
+
+        schema_classes = {}
+
+        # By default, we should generate blocks for all providers
+        block = main.generate_import_block(resource, schema_classes)
+        self.assertIn("to = google_storage_bucket.test", block)
+        self.assertIn("TODO", block)
+        self.assertIn("google", block)
+        self.assertIn("storage_bucket", block)
+
+        # When supported_providers_only=True, we should not generate a block
+        block = main.generate_import_block(
+            resource, schema_classes, supported_providers_only=True
+        )
+        self.assertIsNone(block)
 
     def test_generate_removed_block(self):
         """Test generating a removed block for a resource"""
@@ -302,6 +314,36 @@ class TestBlockGeneration(unittest.TestCase):
         removed_blocks = main.generate_blocks_for_command(resources, "remove")
         # Should have 2 blocks, not 3, due to deduplication
         self.assertEqual(len(removed_blocks), 2)
+
+    def test_generate_blocks_with_mixed_providers(self):
+        """Test that supported_providers_only flag filters non-AWS resources"""
+        resources = [
+            {
+                "address": "aws_s3_bucket.test",
+                "type": "aws_s3_bucket",
+                "values": {"bucket": "test-bucket"},
+            },
+            {
+                "address": "google_storage_bucket.test",
+                "type": "google_storage_bucket",
+                "values": {"name": "test-bucket"},
+            },
+            {
+                "address": "azurerm_storage_account.test",
+                "type": "azurerm_storage_account",
+                "values": {"name": "teststorage"},
+            },
+        ]
+
+        # Test with all providers (default behavior)
+        import_blocks = main.generate_blocks_for_command(resources, "import")
+        self.assertEqual(len(import_blocks), 3)  # All resources should be included
+
+        # Test with supported_providers_only=True
+        import_blocks = main.generate_blocks_for_command(
+            resources, "import", supported_providers_only=True
+        )
+        self.assertEqual(len(import_blocks), 1)  # Only AWS resource should be included
 
 
 if __name__ == "__main__":

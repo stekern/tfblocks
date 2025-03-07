@@ -17,12 +17,7 @@ def get_aws_resource_import_id_generators() -> Dict[str, type]:
     }
 
 
-def file_exists(file_path: str) -> bool:
-    """Check if a file exists."""
-    return os.path.exists(file_path)
-
-
-def extract_resource_addresses_from_content(content: str) -> List[str]:
+def extract_addresses_from_content(content: str) -> List[str]:
     """Extract resource and module addresses from Terraform content."""
     addresses = []
 
@@ -41,12 +36,11 @@ def extract_resource_addresses_from_content(content: str) -> List[str]:
     return addresses
 
 
-def extract_resource_addresses_from_file(file_path: str) -> List[str]:
+def extract_addresses_from_file(file_path: str) -> List[str]:
     """Extract resource and module addresses from a Terraform file."""
     addresses = []
 
-    # First check if file exists
-    if not file_exists(file_path):
+    if not os.path.exists(file_path):
         print(f"Error: File {file_path} does not exist", file=sys.stderr)
         sys.exit(1)
 
@@ -54,7 +48,7 @@ def extract_resource_addresses_from_file(file_path: str) -> List[str]:
         with open(file_path, "r") as f:
             content = f.read()
 
-        addresses = extract_resource_addresses_from_content(content)
+        addresses = extract_addresses_from_content(content)
 
     except Exception as e:
         print(f"Warning: Could not process file {file_path}: {str(e)}", file=sys.stderr)
@@ -158,12 +152,12 @@ def is_resource_match(
 def filter_resources(
     state: Dict[str, Any], addresses: List[str] = [], files: List[str] = []
 ) -> List[Dict[str, Any]]:
-    """Extract matching AWS resources from Terraform state."""
+    """Extract matching resources from Terraform state."""
     # Extract addresses from files if provided
     file_addresses = []
     if files:
         for file_path in files:
-            extracted = extract_resource_addresses_from_file(file_path)
+            extracted = extract_addresses_from_file(file_path)
             file_addresses.extend(extracted)
 
         if not file_addresses:
@@ -185,10 +179,8 @@ def filter_resources(
 
         # Process resources in current module
         for resource in module.get("resources", []):
-            if (
-                resource.get("type", "").startswith("aws_")
-                and resource.get("mode") == "managed"
-                and is_resource_match(resource["address"], addresses, file_addresses)
+            if resource.get("mode") == "managed" and is_resource_match(
+                resource["address"], addresses, file_addresses
             ):
                 resources.append(resource)
 
@@ -202,20 +194,48 @@ def filter_resources(
 
 
 def generate_import_block(
-    resource: Dict[str, Any], schema_classes: Dict[str, type]
-) -> str:
+    resource: Dict[str, Any],
+    schema_classes: Dict[str, type],
+    supported_providers_only: bool = False,
+) -> str | None:
     """Generate Terraform import block for a resource."""
-    matching_class = schema_classes.get(resource["type"])
-    documentation = f"https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/{resource['type'].replace('aws_', '')}#import"
-    import_id = f'"" # TODO: {documentation}'
+    provider_name = resource["type"].split("_")[0] if "_" in resource["type"] else ""
 
-    if matching_class:
-        try:
-            instance = matching_class(resource["address"], resource["values"])
-            if instance.import_id is not None:
-                import_id = f'"{instance.import_id}"'
-        except Exception:
-            pass
+    if provider_name == "aws":
+        # For AWS resources, we have import ID generators
+        matching_class = schema_classes.get(resource["type"])
+        documentation = f"https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/{resource['type'].replace('aws_', '')}#import"
+        import_id = f'"" # TODO: {documentation}'
+
+        if matching_class:
+            try:
+                instance = matching_class(resource["address"], resource["values"])
+                if instance.import_id is not None:
+                    import_id = f'"{instance.import_id}"'
+            except Exception:
+                pass
+    elif not supported_providers_only:
+        # For providers we don't have import ID generators for
+        # we create a block with a link to the resource documentation
+        resource_type = resource["type"]
+
+        # Use provider_name field when available to get the right documentation URL
+        if resource.get("provider_name", "").startswith("registry.terraform.io/"):
+            parts = resource["provider_name"].split("/")
+            if len(parts) >= 3:
+                org = parts[1]
+                provider = parts[2]
+                # Best-effort attempt at linking to the right place
+                docs_url = f"https://registry.terraform.io/providers/{org}/{provider}/latest/docs/resources/{resource_type.removeprefix(f'{provider_name}_')}#import"
+                import_id = f'"" # TODO: {docs_url}'
+            else:
+                import_id = '"" # TODO'
+        else:
+            # Fallback to generic message if provider is not on the Terraform registry
+            import_id = '"" # TODO'
+    else:
+        # For unsupported providers when restricting to supported providers only
+        return None  # Skip this resource
 
     return f"""import {{
   to = {resource["address"]}
@@ -239,7 +259,10 @@ def generate_removed_block(resource_addr: str, destroy: bool = False) -> str:
 
 
 def generate_blocks_for_command(
-    resources: List[Dict[str, Any]], command: str, destroy: bool = False
+    resources: List[Dict[str, Any]],
+    command: str,
+    destroy: bool = False,
+    supported_providers_only: bool = False,
 ) -> List[str]:
     """Generate Terraform code blocks based on command."""
     blocks = []
@@ -261,7 +284,14 @@ def generate_blocks_for_command(
     elif command == "import":
         # For import blocks, we need the full resource data
         schema_classes = get_aws_resource_import_id_generators()
-        blocks = [generate_import_block(r, schema_classes) for r in resources]
+        blocks = [
+            block
+            for block in [
+                generate_import_block(r, schema_classes, supported_providers_only)
+                for r in resources
+            ]
+            if block is not None
+        ]
     else:
         raise ValueError(f"Invalid command '{command}'")
     return blocks
@@ -295,6 +325,11 @@ def parse_args() -> argparse.Namespace:
 
     import_parser = subparsers.add_parser("import", help="Generate import blocks")
     add_filter_args(import_parser)
+    import_parser.add_argument(
+        "--supported-providers-only",
+        action="store_true",
+        help="Only generate import IDs for supported providers (currently only AWS)",
+    )
 
     remove_parser = subparsers.add_parser("remove", help="Generate removed blocks")
     add_filter_args(remove_parser)
@@ -330,7 +365,10 @@ def main():
         return
 
     blocks = generate_blocks_for_command(
-        resources, args.command, getattr(args, "destroy", False)
+        resources,
+        args.command,
+        getattr(args, "destroy", False),
+        getattr(args, "supported_providers_only", False),
     )
 
     if args.no_color:
