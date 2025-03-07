@@ -1,7 +1,7 @@
 [project]
 name = "tfblocks"
 version = "0.0.0-dev"
-description = "Generate Terraform import and removed blocks for AWS resources"
+description = "Easily generate Terraform import and removed blocks for resources in your state"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
@@ -29,18 +29,14 @@ dev = [
 ]
 
 [tool.semantic_release]
-version_variable = ["src/tfblocks/__init__.py:__version__"]
-version_toml = ["pyproject.toml:project.version"]
 major_on_zero = false
 allow_zero_version = true
 upload_to_pypi = false
 upload_to_release = true
-build_command = ""
-branch = "main"
 commit_parser = "angular"
 prerelease = false
 
 [tool.semantic_release.commit_parser_options]
 allowed_tags = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"]
 minor_tags = []
-patch_tags = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"]
+patch_tags = ["feat", "fix", "refactor", "perf", "revert"]
