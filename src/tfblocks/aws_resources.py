@@ -2296,9 +2296,9 @@ class AwsDefaultNetworkAcl(BaseResource):
 
 class AwsDefaultRouteTable(BaseResource):
     def _get_import_id(self) -> str | None:
-        if not self.has_attributes(["default_route_table_id"]):
+        if not self.has_attributes(["vpc_id"]):
             return None
-        return self.attributes["default_route_table_id"]
+        return self.attributes["vpc_id"]
 
 
 class AwsDefaultSecurityGroup(BaseResource):
