@@ -3,7 +3,7 @@
 
 ℹ️ Currently only supports generating import IDs for AWS resources.
 
-`tfblocks` is a utility that generates `import` or `removed` blocks for Terraform resources by reading your Terraform state. These blocks can be especially useful when migrating a large number of resources between different Terraform states as you can define your migrations as code, and safely apply them as normal Terraform changes. They can, however, be a hassle to write by hand - enter `tfblocks`!
+`tfblocks` is a utility that generates `import`, `moved`, or `removed` blocks for Terraform resources by reading your Terraform state. These blocks can be especially useful when migrating a large number of resources between different Terraform states as you can define your migrations as code, and safely apply them as normal Terraform changes. They can, however, be a hassle to write by hand - enter `tfblocks`!
 
 ## Quick Start
 
@@ -43,12 +43,14 @@ tfblocks [command] [options] [addresses...]
 ### Commands
 - `import` - Generate import blocks
 - `remove` - Generate removed blocks
+- `move` - Generate moved blocks
 - `list` - Output resource addresses only
 
 ### Options
 - `--files`, `-f` - Filter resources to those found in specified Terraform files
 - `--no-color` - Disable colored output
 - `--destroy` - Set destroy = true in removed blocks (only with `remove` command)
+- `--supported-providers-only` - Only generate import blocks for providers with import ID generators (currently only AWS)
 
 ## Examples
 ### Generate import blocks for all resources
@@ -68,7 +70,7 @@ terraform show -json | tfblocks import "module.my_module"
 
 ### Generate import blocks for a specific resource type
 ```
-terraform show -json | tfblocks import "aws_s3_bucket.*" "module.*.aws_s3_bucket.*" "module[*].aws_s3_bucket.*"
+terraform show -json | tfblocks import "*.aws_s3_bucket.*" "aws_s3_bucket.*"
 ```
 
 ### Generate import blocks for resources in specific files
@@ -76,12 +78,23 @@ terraform show -json | tfblocks import "aws_s3_bucket.*" "module.*.aws_s3_bucket
 terraform show -json | tfblocks import -f "main.tf"
 ```
 
+### Group generated blocks by source files
+By including all Terraform files in a specific directory as context, tfblocks will group all the generated blocks by the source file of the associated resource (this works both for `import`, `move` and `removed`):
+```
+terraform show -json | tfblocks import -f "*.tf"
+```
+
 ### Generate removed blocks for all resources
 ```
 terraform show -json | tfblocks remove
 ```
 
-### List all resource addresses
+### Generate moved blocks for all resources
 ```
-terraform show -json | tfblocks list
+terraform show -json | tfblocks move
+```
+
+### Count resources in a given file
+```
+terraform show -json | tfblocks list -f main.tf | wc -l
 ```
