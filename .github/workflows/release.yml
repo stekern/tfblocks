@@ -9,7 +9,7 @@ concurrency: ci-${{ github.ref }}-${{ github.workflow }}
 
 jobs:
   release:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     concurrency: release
     permissions:
       contents: write
